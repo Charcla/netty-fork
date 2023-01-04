@@ -70,6 +70,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
      */
     protected AbstractChannel(Channel parent) {
         this.parent = parent;
+        //创建通道的一个唯一标记
         id = newId();
         unsafe = newUnsafe();
         pipeline = newChannelPipeline();
@@ -473,7 +474,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                         new IllegalStateException("incompatible event loop type: " + eventLoop.getClass().getName()));
                 return;
             }
-
+            //指定此channle对应的evenloop
             AbstractChannel.this.eventLoop = eventLoop;
 
             if (eventLoop.inEventLoop()) {
@@ -556,16 +557,17 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                         "is not bound to a wildcard address; binding to a non-wildcard " +
                         "address (" + localAddress + ") anyway as requested.");
             }
-
+            //这时候端口绑定之前不是active，值为false
             boolean wasActive = isActive();
             try {
+                //绑定端口
                 doBind(localAddress);
             } catch (Throwable t) {
                 safeSetFailure(promise, t);
                 closeIfClosed();
                 return;
             }
-
+            //端口绑定之后，变为active了，并且绑定之前得是非active
             if (!wasActive && isActive()) {
                 invokeLater(new Runnable() {
                     @Override

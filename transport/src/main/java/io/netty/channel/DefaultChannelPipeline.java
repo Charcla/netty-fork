@@ -93,7 +93,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         this.channel = ObjectUtil.checkNotNull(channel, "channel");
         succeededFuture = new SucceededChannelFuture(channel, null);
         voidPromise =  new VoidChannelPromise(channel, true);
-
+        //这里创建头和尾context，头比较特俗，即时入站也是出站
         tail = new TailContext(this);
         head = new HeadContext(this);
 
@@ -889,7 +889,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             inEventLoop = false;
         }
     }
-
+    //厨房chanle的active事件
     @Override
     public final ChannelPipeline fireChannelActive() {
         AbstractChannelHandlerContext.invokeChannelActive(head);

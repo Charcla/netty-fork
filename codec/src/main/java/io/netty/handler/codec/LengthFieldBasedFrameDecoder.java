@@ -183,20 +183,33 @@ import io.netty.channel.ChannelHandlerContext;
  * +------+--------+------+----------------+      +------+----------------+
  * </pre>
  * @see LengthFieldPrepender
+ * 自定义长度的消息解码器
+ * 协议的格式为：head+body
  */
 public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
 
     private final ByteOrder byteOrder;
+    //最大帧长度，也就是本次可以接受的数据最大长度，如果超过这个长度，那么这次的数据会被丢弃
     private final int maxFrameLength;
+    //表示消息体长度的字节的起始偏移量地址
     private final int lengthFieldOffset;
+    //长度域字节数，表示消息体长度的长度字节大小
     private final int lengthFieldLength;
+    //表示报文体长度的字节的结尾偏移地址，也就是lengthFieldOffset+lengthFieldLength
     private final int lengthFieldEndOffset;
+    //数据长度修正，因为长度域指定的长度可以是head+body的长度，也可以是body的长度
+    //如果是head+body的长度，则需要这个字段
+    //如果长度域只包含数据的长度，则这个值为0
+    //如果长度域为head+body的长度，则这个值为head长度的负数，意味着需要减去这个head的长度
     private final int lengthAdjustment;
+
+    //跳过的字节数，如果需要接受head+body的所有数据，则这个值为0，如果只想接受body数据，那么则需要跳过了head的字节数
     private final int initialBytesToStrip;
     private final boolean failFast;
     private boolean discardingTooLongFrame;
     private long tooLongFrameLength;
     private long bytesToDiscard;
+    //-1表示是一个新帧
     private int frameLengthInt = -1;
 
     /**
@@ -396,48 +409,59 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
      */
     protected Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
         long frameLength = 0;
+        //这个值为-1的话表示一个新的帧，如果不是，代表上次已经读取多，并且frameLenthInt表示需要读取的包长度
         if (frameLengthInt == -1) { // new frame
 
             if (discardingTooLongFrame) {
                 discardingTooLongFrame(in);
             }
-
+            //这里判断可读的字节数是不是小于报文体长度的字节结尾偏移量,如果是，直接不读
             if (in.readableBytes() < lengthFieldEndOffset) {
                 return null;
             }
-
+            //拿到长度域实际的开始下标=byteBuf的下一个read地址+长度域的其实地址
             int actualLengthFieldOffset = in.readerIndex() + lengthFieldOffset;
             frameLength = getUnadjustedFrameLength(in, actualLengthFieldOffset, lengthFieldLength, byteOrder);
 
+            //如果长度域为负数，直接跳过并抛异常
             if (frameLength < 0) {
                 failOnNegativeLengthField(in, frameLength, lengthFieldEndOffset);
             }
-
+            //调整包的长度，真实长度=内容域长度+修正值+长度域结尾地址
             frameLength += lengthAdjustment + lengthFieldEndOffset;
-
+            //要是数据包长度还没有长度域，直接抛错
             if (frameLength < lengthFieldEndOffset) {
                 failOnFrameLengthLessThanLengthFieldEndOffset(in, frameLength, lengthFieldEndOffset);
             }
-
+            //要是包长度大于最大帧长度，直接舍弃
             if (frameLength > maxFrameLength) {
                 exceededFrameLength(in, frameLength);
                 return null;
             }
             // never overflows because it's less than maxFrameLength
+            //把当前帧长度赋值
             frameLengthInt = (int) frameLength;
         }
+        //如果可读的数小于上面定义的数据包长度，那么什么都不做，等待下一次的读取
         if (in.readableBytes() < frameLengthInt) { // frameLengthInt exist , just check buf
             return null;
         }
+
+        //跳过的字节数不能超过包长度，否则报错
         if (initialBytesToStrip > frameLengthInt) {
             failOnFrameLengthLessThanInitialBytesToStrip(in, frameLength, initialBytesToStrip);
         }
+
+        //跳过这个字节数（跳过配置的长度域的字节数）
         in.skipBytes(initialBytesToStrip);
 
         // extract frame
         int readerIndex = in.readerIndex();
+        //获取实际数据包长度
         int actualFrameLength = frameLengthInt - initialBytesToStrip;
+        //获取真实的内容包数据
         ByteBuf frame = extractFrame(ctx, in, readerIndex, actualFrameLength);
+        //移动读指针
         in.readerIndex(readerIndex + actualFrameLength);
         frameLengthInt = -1; // start processing the next frame
         return frame;
@@ -448,7 +472,7 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
      * capable of decoding the specified region into an unsigned 8/16/24/32/64 bit integer.  Override this method to
      * decode the length field encoded differently.  Note that this method must not modify the state of the specified
      * buffer (e.g. {@code readerIndex}, {@code writerIndex}, and the content of the buffer.)
-     *
+     * 从offset位置开始读取length长度的字节数
      * @throws DecoderException if failed to decode the specified region
      */
     protected long getUnadjustedFrameLength(ByteBuf buf, int offset, int length, ByteOrder order) {
@@ -497,6 +521,7 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
 
     /**
      * Extract the sub-region of the specified buffer.
+     * 从buffer截取index开始长度为length的byteBuf
      */
     protected ByteBuf extractFrame(ChannelHandlerContext ctx, ByteBuf buffer, int index, int length) {
         return buffer.retainedSlice(index, length);

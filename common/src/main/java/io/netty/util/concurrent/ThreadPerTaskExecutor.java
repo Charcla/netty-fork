@@ -19,16 +19,17 @@ import io.netty.util.internal.ObjectUtil;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
-
+//线程选择器
 public final class ThreadPerTaskExecutor implements Executor {
     private final ThreadFactory threadFactory;
-
+    //传入线程工厂
     public ThreadPerTaskExecutor(ThreadFactory threadFactory) {
         this.threadFactory = ObjectUtil.checkNotNull(threadFactory, "threadFactory");
     }
 
     @Override
     public void execute(Runnable command) {
+        //每次都创建一个新的线程并执行
         threadFactory.newThread(command).start();
     }
 }
