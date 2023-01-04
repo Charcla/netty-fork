@@ -142,6 +142,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         }
         final Entry<AttributeKey<?>, Object>[] currentChildAttrs = childAttrs.entrySet().toArray(EMPTY_ATTRIBUTE_ARRAY);
 
+        //这里是添加一个初始化入站处理器，这个处理器比较特别，执行完一次后就会被移除
         p.addLast(new ChannelInitializer<Channel>() {
             @Override
             public void initChannel(final Channel ch) {
@@ -151,6 +152,13 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
                     pipeline.addLast(handler);
                 }
 
+                //异步任务去给ssc通道添加接受accept事件的处理器
+                /**
+                 * todo，这里有个发现，evenloop的execute事件都用了代理
+                 * 目前发现的作用之一是异步去执行任务，然后添加这个任务到任务队列
+                 * 每次执行都要判断下当前线程是不是evenloop中分装的线程，如果不是就去new一个FastthreadLocalThread线程执行任务
+                 *
+                 */
                 ch.eventLoop().execute(new Runnable() {
                     @Override
                     public void run() {

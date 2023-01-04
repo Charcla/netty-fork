@@ -51,6 +51,7 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(NioServerSocketChannel.class);
 
+    //创建一个ssc
     private static ServerSocketChannel newSocket(SelectorProvider provider) {
         try {
             /**
@@ -86,7 +87,9 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
      * Create a new instance using the given {@link ServerSocketChannel}.
      */
     public NioServerSocketChannel(ServerSocketChannel channel) {
+        //这里传入这个ssc感兴趣的事件为accept
         super(null, channel, SelectionKey.OP_ACCEPT);
+        //创建一个参数类，是tcp的一些配置类
         config = new NioServerSocketChannelConfig(this, javaChannel().socket());
     }
 

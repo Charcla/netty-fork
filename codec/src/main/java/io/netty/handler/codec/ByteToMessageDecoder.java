@@ -71,15 +71,20 @@ import static java.lang.Integer.MAX_VALUE;
  * Some methods such as {@link ByteBuf#readBytes(int)} will cause a memory leak if the returned buffer
  * is not released or added to the <tt>out</tt> {@link List}. Use derived buffers like {@link ByteBuf#readSlice(int)}
  * to avoid leaking memory.
+ * 处理拆包的基类
  */
 public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter {
 
     /**
      * Cumulate {@link ByteBuf}s by merge them into one {@link ByteBuf}'s, using memory copies.
+     * 每次将读取到的数据通过内存拷贝的形式拷贝到一个大的字节容器中（cumulation）
      */
     public static final Cumulator MERGE_CUMULATOR = new Cumulator() {
+
+        //将in中数据累加到cumulation容器中
         @Override
         public ByteBuf cumulate(ByteBufAllocator alloc, ByteBuf cumulation, ByteBuf in) {
+            //累加器容器是空的并且in是连续的
             if (!cumulation.isReadable() && in.isContiguous()) {
                 // If cumulation is empty and input buffer is contiguous, use it directly
                 cumulation.release();
@@ -94,8 +99,10 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                     // - cumulation cannot be resized to accommodate the additional data
                     // - cumulation can be expanded with a reallocation operation to accommodate but the buffer is
                     //   assumed to be shared (e.g. refCnt() > 1) and the reallocation may not be safe.
+                    //扩容
                     return expandCumulation(alloc, cumulation, in);
                 }
+                //将in这个字节数组从可读位置开始可以读到的数据全部写入到cumulation容器
                 cumulation.writeBytes(in, in.readerIndex(), required);
                 in.readerIndex(in.writerIndex());
                 return cumulation;
@@ -147,18 +154,25 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
         }
     };
 
+    //初始状态
     private static final byte STATE_INIT = 0;
+    //正在调用子类解码
     private static final byte STATE_CALLING_CHILD_DECODE = 1;
+    //处理器待删除
     private static final byte STATE_HANDLER_REMOVED_PENDING = 2;
 
     ByteBuf cumulation;
     private Cumulator cumulator = MERGE_CUMULATOR;
+    //是否只解码一次
     private boolean singleDecode;
+    //是否第一次累加缓冲区
     private boolean first;
 
     /**
      * This flag is used to determine if we need to call {@link ChannelHandlerContext#read()} to consume more data
      * when {@link ChannelConfig#isAutoRead()} is {@code false}.
+     * 当自动读取是false的时候，
+     * 是否要去调用ChannelHandlerContext的read（）来设置监听读事件，可能没读完
      */
     private boolean firedChannelRead;
 
@@ -270,9 +284,12 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
         if (msg instanceof ByteBuf) {
             CodecOutputList out = CodecOutputList.newInstance();
             try {
+                //判断当前cumulation是不是空的，如果空的说明不存在上一次读取遗留下来的数据
                 first = cumulation == null;
+                //累加数据
                 cumulation = cumulator.cumulate(ctx.alloc(),
                         first ? Unpooled.EMPTY_BUFFER : cumulation, (ByteBuf) msg);
+                //将累加后的数据传递给下一步进行拆包
                 callDecode(ctx, cumulation, out);
             } catch (DecoderException e) {
                 throw e;
@@ -280,6 +297,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                 throw new DecoderException(e);
             } finally {
                 try {
+                    //累加器里面的数据都读完了，则清空处理
                     if (cumulation != null && !cumulation.isReadable()) {
                         numReads = 0;
                         cumulation.release();
@@ -293,6 +311,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
 
                     int size = out.size();
                     firedChannelRead |= out.insertSinceRecycled();
+                    //向下传播数据
                     fireChannelRead(ctx, out, size);
                 } finally {
                     out.recycle();

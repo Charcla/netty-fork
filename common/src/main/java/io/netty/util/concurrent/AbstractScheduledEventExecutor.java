@@ -173,7 +173,7 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
             delay = 0;
         }
         validateScheduled0(delay, unit);
-
+        //把callable任务封装成ScheduledFutureTask
         return schedule(new ScheduledFutureTask<Void>(
                 this,
                 command,

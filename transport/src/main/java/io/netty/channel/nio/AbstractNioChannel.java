@@ -79,8 +79,10 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     protected AbstractNioChannel(Channel parent, SelectableChannel ch, int readInterestOp) {
         super(parent);
         this.ch = ch;
+        //设置感兴趣的事件
         this.readInterestOp = readInterestOp;
         try {
+            //切换非阻塞模式
             ch.configureBlocking(false);
         } catch (IOException e) {
             try {
