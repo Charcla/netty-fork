@@ -22,6 +22,7 @@ import io.netty.util.IntSupplier;
  *
  * Provides the ability to control the behavior of the select loop. For example a blocking select
  * operation can be delayed or skipped entirely if there are events to process immediately.
+ * 策略的枚举状态
  */
 public interface SelectStrategy {
 

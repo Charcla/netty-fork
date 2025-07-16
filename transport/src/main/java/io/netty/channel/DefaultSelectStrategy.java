@@ -19,12 +19,20 @@ import io.netty.util.IntSupplier;
 
 /**
  * Default select strategy.
+ * 策略选择器
  */
 final class DefaultSelectStrategy implements SelectStrategy {
     static final SelectStrategy INSTANCE = new DefaultSelectStrategy();
 
     private DefaultSelectStrategy() { }
 
+    /**
+     *
+     * @param selectSupplier The supplier with the result of a select result.
+     * @param hasTasks true if tasks are waiting to be processed.
+     * @return
+     * @throws Exception
+     */
     @Override
     public int calculateStrategy(IntSupplier selectSupplier, boolean hasTasks) throws Exception {
         return hasTasks ? selectSupplier.get() : SelectStrategy.SELECT;

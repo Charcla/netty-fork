@@ -17,6 +17,7 @@ package io.netty.util;
 
 /**
  * Represents a supplier of {@code int}-valued results.
+ * 用来返回一个整数值，表示策略的返回值
  */
 public interface IntSupplier {
 

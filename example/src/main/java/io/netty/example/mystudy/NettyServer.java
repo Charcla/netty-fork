@@ -27,16 +27,26 @@ public class NettyServer {
                 @Override
                 protected void initChannel(NioSocketChannel ch) throws Exception {
                     ChannelPipeline pipeline = ch.pipeline();
-                    pipeline.addLast(new LengthFieldBasedFrameDecoder(4096,0,4,0,4));
-                    pipeline.addLast(new LengthFieldPrepender(4));
+//                    pipeline.addLast(new LengthFieldBasedFrameDecoder(4096,0,4,0,4));
+//                    pipeline.addLast(new LengthFieldPrepender(4));
                     pipeline.addLast(new StringEncoder());
-                    pipeline.addLast(new StringDecoder());
-                    pipeline.addLast(new SimpleChannelInboundHandler<String>() {
+//                    pipeline.addLast(new StringDecoder());
+                    pipeline.addLast("h1",new SimpleChannelInboundHandler<Object>() {
                         @Override
-                        protected void channelRead0(ChannelHandlerContext ctx, String msg) throws Exception {
+                        protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
                             log.info("服务端收到请求为：{}",msg);
-                            ctx.writeAndFlush(msg+msg);
-                            log.info("服务端返回客户端为：{}",msg+msg);
+//                            ctx.writeAndFlush(msg+msg);
+//                            log.info("服务端返回客户端为：{}",msg+msg);
+                            ctx.fireChannelRead(msg);
+                        }
+
+                    });
+                    pipeline.addLast("h2",new SimpleChannelInboundHandler<Object>() {
+                        @Override
+                        protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+                            log.info("服务端收到请求为：{}",msg);
+//                            ctx.writeAndFlush(msg+msg);
+//                            log.info("服务端返回客户端为：{}",msg+msg);
                         }
 
                     });

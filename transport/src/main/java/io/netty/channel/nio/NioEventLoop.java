@@ -188,6 +188,10 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    /**
+     * 打开选择器
+     * @return
+     */
     private SelectorTuple openSelector() {
         final Selector unwrappedSelector;
         try {
@@ -234,6 +238,10 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             public Object run() {
                 try {
                     //用反射，替换自己优化后的key
+                    //原先的两个集合为hashset，优化后的集合为：数组
+                    //重写了add和iterator（）方法，
+                    //selectedKeys：就绪key的集合
+                    //publicSelectedKeys：外部访问就绪key的集合
                     Field selectedKeysField = selectorImplClass.getDeclaredField("selectedKeys");
                     Field publicSelectedKeysField = selectorImplClass.getDeclaredField("publicSelectedKeys");
 
@@ -375,9 +383,12 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     /**
      * Replaces the current {@link Selector} of this event loop with newly created {@link Selector}s to work
      * around the infamous epoll 100% CPU bug.
+     * 通过创建一个新的selector，把老的selector上的事件迁移到新的，来解决jdk的空轮训bug
      */
     public void rebuildSelector() {
+        //如果当前线程和这个NioEventLoop绑定的线程不一致
         if (!inEventLoop()) {
+            //那就交给这个NioEventLoop绑定的线程来执行
             execute(new Runnable() {
                 @Override
                 public void run() {
@@ -393,6 +404,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     public int registeredChannels() {
         return selector.keys().size() - cancelledKeys;
     }
+
     //重新创建一个selector
     private void rebuildSelector0() {
         final Selector oldSelector = selector;
@@ -403,6 +415,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
 
         try {
+            //创建新的选择器
             newSelectorTuple = openSelector();
         } catch (Exception e) {
             logger.warn("Failed to create a new Selector.", e);
@@ -420,11 +433,13 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 }
                 //获取这个key关注的事件
                 int interestOps = key.interestOps();
+                //取消原有SelectionKey上的事件
                 key.cancel();
                 //将这个channle注册到新的selector
                 SelectionKey newKey = key.channel().register(newSelectorTuple.unwrappedSelector, interestOps, a);
                 if (a instanceof AbstractNioChannel) {
                     // Update SelectionKey
+                    //把新的SelectionKey赋值给AbstractNioChannel
                     ((AbstractNioChannel) a).selectionKey = newKey;
                 }
                 nChannels ++;
@@ -440,7 +455,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 }
             }
         }
-
+        //替换新的selector
         selector = newSelectorTuple.selector;
         unwrappedSelector = newSelectorTuple.unwrappedSelector;
 
@@ -458,14 +473,19 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             logger.info("Migrated " + nChannels + " channel(s) to the new Selector.");
         }
     }
-
+    //事件循环，不断的轮训注册在这个nioeventloop上的channel，如果有事件（读，些，链接）等，然后进行处理
     @Override
     protected void run() {
         int selectCnt = 0;
-        for (;;) {
+        for (;;) {  //死循环
             try {
                 int strategy;
                 try {
+
+                    /**
+                     * 返回处理策略
+                     * 1、hasTasks()有任务的时候，那就直接先去执行上面的selectNow（）
+                     */
                     strategy = selectStrategy.calculateStrategy(selectNowSupplier, hasTasks());
                     switch (strategy) {
                     case SelectStrategy.CONTINUE:
